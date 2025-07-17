@@ -15,15 +15,14 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/payments")
 public class PamentoProcessorController {
 
-    private final PamentoProcessorService pamentoProcessorService;
-
-    public PamentoProcessorController(PagamentoRepository pagamentoRepository, @Qualifier("defaultProcessorWebClient") WebClient defaultWebClient, @Qualifier("fallbackProcessorWebClient") WebClient fallbackWebClient) {
-        this.pamentoProcessorService = new PamentoProcessorService(pagamentoRepository, defaultWebClient, fallbackWebClient);
-    }
+//    private final PamentoProcessorService pamentoProcessorService;
+//
+//    public PamentoProcessorController(PagamentoRepository pagamentoRepository, @Qualifier("defaultProcessorWebClient") WebClient defaultWebClient, @Qualifier("fallbackProcessorWebClient") WebClient fallbackWebClient) {
+//        this.pamentoProcessorService = new PamentoProcessorService(pagamentoRepository, defaultWebClient, fallbackWebClient);
+//    }
 
     @PostMapping
     public Mono<Void> pagar(@RequestBody PagamentoRequestDto pagamentoRequestDto) {
-        //virtualThread.submit(() -> pamentoProcessorService.pagar(pagamentoRequestDto));
         return Mono.empty();
     }
 }
