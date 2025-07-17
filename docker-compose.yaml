@@ -15,33 +15,33 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.05"
-          memory: "20M"
+          cpus: "0.20"
+          memory: "50MB"
 
   api1: &api
-    image: matheuspieropan/rinhabackend2025:final
+    image: matheuspieropan/rinhabackend2025:springmvc
     hostname: api1
     networks:
       - backend
       - payment-processor
     ports:
       - "8080:8080"
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: "0.5"
-#          memory: "120M"
+  #    deploy:
+  #      resources:
+  #        limits:
+  #          cpus: "0.6"
+  #          memory: "105MB"
 
   api2:
     <<: *api
     hostname: api2
     ports:
       - "8081:8080"
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: "0.5"
-#          memory: "120M"
+  #    deploy:
+  #      resources:
+  #        limits:
+  #          cpus: "0.6"
+  #          memory: "105MB"
 
   mongodb:
     image: mongo:7.0
@@ -54,8 +54,8 @@ services:
 #    deploy:
 #      resources:
 #        limits:
-#          cpus: "0.45"
-#          memory: "90M"
+#          cpus: "0.2"
+#          memory: "90MB"
 
 networks:
   backend:

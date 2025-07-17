@@ -9,5 +9,5 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface PagamentoProcessorFallbackClient {
 
     @PostMapping(value = "/payments", consumes = "application/json")
-    Boolean processPayment(@RequestBody PagamentoProcessorRequestDto pagamentoProcessorRequestDto);
+    void processPayment(@RequestBody PagamentoProcessorRequestDto pagamentoProcessorRequestDto);
 }

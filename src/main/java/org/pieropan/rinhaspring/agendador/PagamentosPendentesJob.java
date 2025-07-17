@@ -20,7 +20,7 @@ public class PagamentosPendentesJob {
         this.pamentoProcessorService = pamentoProcessorService;
     }
 
-    @Scheduled(initialDelay = 10000, fixedDelay = 5000)
+    @Scheduled(initialDelay = 10000, fixedDelay = 500)
     public void reprocessa() {
         if (paymentsPending.isEmpty()) {
             return;
@@ -29,7 +29,10 @@ public class PagamentosPendentesJob {
         log.info("Iniciando reprocessamento. Total pendentes: {}", paymentsPending.size());
 
         for (PagamentoRequestDto pagamentoRequestDto : paymentsPending) {
-            pamentoProcessorService.pagarViaAgendador(pagamentoRequestDto);
+            boolean falhou = !pamentoProcessorService.pagarViaAgendador(pagamentoRequestDto);
+            if (falhou) {
+                break;
+            }
         }
     }
 }

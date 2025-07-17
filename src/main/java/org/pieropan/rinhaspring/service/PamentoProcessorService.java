@@ -6,6 +6,8 @@ import org.pieropan.rinhaspring.dto.PagamentoRequestDto;
 import org.pieropan.rinhaspring.http.PagamentoProcessorDefaultClient;
 import org.pieropan.rinhaspring.http.PagamentoProcessorFallbackClient;
 import org.pieropan.rinhaspring.repository.PagamentoRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,6 +25,8 @@ public class PamentoProcessorService {
 
     private final PagamentoProcessorFallbackClient pagamentoProcessorFallbackClient;
 
+    private static final Logger log = LoggerFactory.getLogger(PamentoProcessorService.class);
+
     public PamentoProcessorService(PagamentoRepository pagamentoRepository,
                                    PagamentoProcessorDefaultClient pagamentoProcessorDefaultClient,
                                    PagamentoProcessorFallbackClient pagamentoProcessorFallbackClient) {
@@ -31,14 +35,22 @@ public class PamentoProcessorService {
         this.pagamentoProcessorFallbackClient = pagamentoProcessorFallbackClient;
     }
 
-    public void pagarViaAgendador(PagamentoRequestDto pagamentoRequestDto) {
+    public boolean pagarViaAgendador(PagamentoRequestDto pagamentoRequestDto) {
         Instant createdAt = Instant.now();
         boolean sucesso = enviarRequisicao(pagamentoRequestDto, true, createdAt);
 
         if (sucesso) {
             salvarDocument(pagamentoRequestDto, true, createdAt);
             paymentsPending.remove(pagamentoRequestDto);
+        } else {
+            sucesso = enviarRequisicao(pagamentoRequestDto, false, createdAt);
+            if (sucesso) {
+                salvarDocument(pagamentoRequestDto, false, createdAt);
+                paymentsPending.remove(pagamentoRequestDto);
+            }
         }
+        log.info("-- Conseguiu realizar pagamento --");
+        return sucesso;
     }
 
     public void pagar(PagamentoRequestDto pagamentoRequestDto) {
