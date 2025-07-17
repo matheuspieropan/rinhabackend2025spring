@@ -11,16 +11,14 @@ import org.pieropan.rinhaspring.dto.PagamentoRequestDto;
 import org.pieropan.rinhaspring.feign.puro.PagamentoProcessorDefaultClient;
 import org.pieropan.rinhaspring.feign.puro.PagamentoProcessorFallbackClient;
 import org.pieropan.rinhaspring.repository.PagamentoRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.pieropan.rinhaspring.agendador.PagamentoHelthCheckJob.MELHOR_OPCAO;
 
 @Service
@@ -36,8 +34,6 @@ public class PamentoProcessorService {
 
     private final JacksonEncoder jacksonEncoder;
 
-    private static final Logger log = LoggerFactory.getLogger(PamentoProcessorService.class);
-
     public PamentoProcessorService(PagamentoRepository pagamentoRepository,
                                    @Value("${pagamento.processor.fallback.url}") String pagamentoProcessorFallbackUrl,
                                    @Value("${pagamento.processor.default.url}") String pagamentoProcessorDefaultUrl,
@@ -49,14 +45,15 @@ public class PamentoProcessorService {
         this.jacksonEncoder = jacksonEncoder;
     }
 
-    public boolean pagarViaAgendador(PagamentoRequestDto pagamentoRequestDto) {
+    public boolean pagarPorAgendador(PagamentoRequestDto pagamentoRequestDto) {
+        MelhorOpcao melhorOpcao = MELHOR_OPCAO;
         Instant createdAt = Instant.now();
-        boolean sucesso = enviarRequisicao(pagamentoRequestDto, createdAt);
+
+        boolean sucesso = enviarRequisicao(pagamentoRequestDto, createdAt, melhorOpcao);
 
         if (sucesso) {
-            salvarDocument(pagamentoRequestDto, true, createdAt);
+            salvarDocument(pagamentoRequestDto, melhorOpcao.processadorDefault(), createdAt);
             paymentsPending.remove(pagamentoRequestDto);
-            log.info("-- Conseguiu realizar pagamento -- itens na lista {}", paymentsPending.size());
         }
 
         return sucesso;
@@ -65,11 +62,12 @@ public class PamentoProcessorService {
     public void pagar(PagamentoRequestDto pagamentoRequestDto) {
         try {
 
+            MelhorOpcao melhorOpcao = MELHOR_OPCAO;
             Instant createdAt = Instant.now();
-            boolean sucesso = enviarRequisicao(pagamentoRequestDto, createdAt);
+            boolean sucesso = enviarRequisicao(pagamentoRequestDto, createdAt, melhorOpcao);
 
             if (sucesso) {
-                salvarDocument(pagamentoRequestDto, true, createdAt);
+                salvarDocument(pagamentoRequestDto, melhorOpcao.processadorDefault(), createdAt);
                 return;
             }
             paymentsPending.add(pagamentoRequestDto);
@@ -77,10 +75,12 @@ public class PamentoProcessorService {
         }
     }
 
-    public Boolean enviarRequisicao(PagamentoRequestDto pagamentoRequestDto, Instant createdAt) {
+    public Boolean enviarRequisicao(PagamentoRequestDto pagamentoRequestDto,
+                                    Instant createdAt,
+                                    MelhorOpcao melhorOpcao) {
 
-        PagamentoProcessorRequestDto pagamentoProcessorRequestDto = criarPagamentoProcessorRequest(pagamentoRequestDto, createdAt);
-        MelhorOpcao melhorOpcao = MELHOR_OPCAO;
+        PagamentoProcessorRequestDto pagamentoProcessorRequestDto =
+                criarPagamentoProcessorRequest(pagamentoRequestDto, createdAt);
 
         if (melhorOpcao == null) {
             return false;
@@ -94,7 +94,7 @@ public class PamentoProcessorService {
                 clientFallbackHttp().processPayment(pagamentoProcessorRequestDto);
             }
             return true;
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
             return false;
         }
     }
@@ -114,21 +114,21 @@ public class PamentoProcessorService {
         pagamentoRepository.save(doc);
     }
 
-    public synchronized PagamentoProcessorDefaultClient clientDefaultHttp() {
-        int timeout = MELHOR_OPCAO.timeoutIndicado() + 500;
+    public PagamentoProcessorDefaultClient clientDefaultHttp() {
+        int timeout = MELHOR_OPCAO.timeoutIndicado() + 1000;
         return Feign.builder().
                 encoder(jacksonEncoder).
                 decoder(new JacksonDecoder()).
-                options(new Request.Options(timeout, TimeUnit.SECONDS, timeout, TimeUnit.SECONDS, false)).
+                options(new Request.Options(timeout, SECONDS, timeout, SECONDS, false)).
                 target(PagamentoProcessorDefaultClient.class, pagamentoProcessorDefaultUrl);
     }
 
-    public synchronized PagamentoProcessorFallbackClient clientFallbackHttp() {
-        int timeout = MELHOR_OPCAO.timeoutIndicado() + 500;
+    public PagamentoProcessorFallbackClient clientFallbackHttp() {
+        int timeout = MELHOR_OPCAO.timeoutIndicado() + 1000;
         return Feign.builder().
-                encoder(new JacksonEncoder()).
+                encoder(jacksonEncoder).
                 decoder(new JacksonDecoder()).
-                options(new Request.Options(timeout, TimeUnit.SECONDS, timeout, TimeUnit.SECONDS, false)).
+                options(new Request.Options(timeout, SECONDS, timeout, SECONDS, false)).
                 target(PagamentoProcessorFallbackClient.class, pagamentoProcessorFallbackUrl);
     }
 }
