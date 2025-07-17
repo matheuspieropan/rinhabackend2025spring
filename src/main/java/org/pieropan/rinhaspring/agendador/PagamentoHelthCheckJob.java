@@ -2,12 +2,12 @@ package org.pieropan.rinhaspring.agendador;
 
 import org.pieropan.rinhaspring.dto.HealthResponse;
 import org.pieropan.rinhaspring.dto.MelhorOpcao;
-import org.pieropan.rinhaspring.http.PagamentoProcessorDefaultClient;
-import org.pieropan.rinhaspring.http.PagamentoProcessorFallbackClient;
+import org.pieropan.rinhaspring.feign.spring.PagamentoProcessorDefaultClient;
+import org.pieropan.rinhaspring.feign.spring.PagamentoProcessorFallbackClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-//@Component
+@Component
 public class PagamentoHelthCheckJob {
 
     private final PagamentoProcessorDefaultClient pagamentoProcessorDefaultClient;

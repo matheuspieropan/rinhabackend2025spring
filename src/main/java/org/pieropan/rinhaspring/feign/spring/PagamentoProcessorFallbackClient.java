@@ -1,4 +1,4 @@
-package org.pieropan.rinhaspring.http;
+package org.pieropan.rinhaspring.feign.spring;
 
 import org.pieropan.rinhaspring.dto.HealthResponse;
 import org.pieropan.rinhaspring.dto.PagamentoProcessorRequestDto;
