@@ -56,7 +56,7 @@ public class PamentoProcessorService {
         if (sucesso) {
             salvarDocument(pagamentoRequestDto, true, createdAt);
             paymentsPending.remove(pagamentoRequestDto);
-            log.info("-- Conseguiu realizar pagamento --");
+            log.info("-- Conseguiu realizar pagamento -- itens na lista {}", paymentsPending.size());
         }
 
         return sucesso;
@@ -73,8 +73,7 @@ public class PamentoProcessorService {
                 return;
             }
             paymentsPending.add(pagamentoRequestDto);
-        } catch (Exception e) {
-            System.out.println("Erro processPayment(PaymentRequest paymentRequest)");
+        } catch (Exception ignored) {
         }
     }
 
@@ -116,7 +115,7 @@ public class PamentoProcessorService {
     }
 
     public synchronized PagamentoProcessorDefaultClient clientDefaultHttp() {
-        int timeout = MELHOR_OPCAO.timeoutIndicado();
+        int timeout = MELHOR_OPCAO.timeoutIndicado() + 500;
         return Feign.builder().
                 encoder(jacksonEncoder).
                 decoder(new JacksonDecoder()).

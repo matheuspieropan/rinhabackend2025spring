@@ -21,27 +21,59 @@ public class PagamentoHelthCheckJob {
         this.pagamentoProcessorFallbackClient = pagamentoProcessorFallbackClient;
     }
 
-    @Scheduled(initialDelay = 10000, fixedDelay = 5000)
+    @Scheduled(initialDelay = 5000, fixedDelay = 5500)
     public void checaProcessadorDefault() {
-        HealthResponse healthResponseDefault = pagamentoProcessorDefaultClient.healthCheck();
-        int RESPONSE_TIME_PADRAO = healthResponseDefault.failing() ? 10000 : healthResponseDefault.minResponseTime();
 
-        HealthResponse healthResponseFallback = pagamentoProcessorFallbackClient.healthCheck();
-        int RESPONSE_TIME_FALLBACK = healthResponseFallback.failing() ? 10000 : healthResponseFallback.minResponseTime();
+        HealthResponse healthResponseDefault = null;
+        HealthResponse healthResponseFallback = null;
 
-        if (healthResponseDefault.failing() && healthResponseFallback.failing()) {
+        try {
+            healthResponseDefault = pagamentoProcessorDefaultClient.healthCheck();
+        } catch (Exception ignored) {
+        }
+
+        try {
+            healthResponseFallback = pagamentoProcessorFallbackClient.healthCheck();
+        } catch (Exception ignored) {
+        }
+
+        if (healthResponseDefault == null && healthResponseFallback == null) {
             MELHOR_OPCAO = null;
             return;
         }
 
-        if (RESPONSE_TIME_PADRAO < RESPONSE_TIME_FALLBACK) {
-            MELHOR_OPCAO = new MelhorOpcao(true, RESPONSE_TIME_PADRAO);
-            return;
-        } else if (RESPONSE_TIME_PADRAO == RESPONSE_TIME_FALLBACK) {
-            MELHOR_OPCAO = new MelhorOpcao(true, RESPONSE_TIME_PADRAO);
-            return;
-        }
+        boolean ambosResponderam = healthResponseDefault != null && healthResponseFallback != null;
+        if (ambosResponderam) {
 
-        MELHOR_OPCAO = new MelhorOpcao(false, RESPONSE_TIME_FALLBACK);
+            boolean defaultDisponivel = !healthResponseDefault.failing();
+            boolean fallbackDisponivel = !healthResponseFallback.failing();
+
+            if (defaultDisponivel && fallbackDisponivel) {
+
+                MELHOR_OPCAO = new MelhorOpcao(true, healthResponseDefault.minResponseTime());
+
+            } else if (defaultDisponivel) {
+
+                MELHOR_OPCAO = new MelhorOpcao(true, healthResponseDefault.minResponseTime());
+
+            } else if (fallbackDisponivel) {
+
+                MELHOR_OPCAO = new MelhorOpcao(false, healthResponseFallback.minResponseTime());
+            } else {
+
+                MELHOR_OPCAO = null;
+            }
+
+        } else if (healthResponseDefault != null && !healthResponseDefault.failing()) {
+
+            MELHOR_OPCAO = new MelhorOpcao(true, healthResponseDefault.minResponseTime());
+
+        } else if (healthResponseFallback != null && !healthResponseFallback.failing()) {
+            MELHOR_OPCAO = new MelhorOpcao(false, healthResponseFallback.minResponseTime());
+
+        } else {
+
+            MELHOR_OPCAO = null;
+        }
     }
 }
