@@ -1,10 +1,10 @@
 package org.pieropan.rinhaspring.controller;
 
+import feign.jackson.JacksonEncoder;
 import org.pieropan.rinhaspring.dto.PagamentoRequestDto;
-import org.pieropan.rinhaspring.http.PagamentoProcessorDefaultClient;
-import org.pieropan.rinhaspring.http.PagamentoProcessorFallbackClient;
 import org.pieropan.rinhaspring.repository.PagamentoRepository;
 import org.pieropan.rinhaspring.service.PamentoProcessorService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,12 +22,13 @@ public class PamentoProcessorController {
     private final ExecutorService virtualThread = Executors.newVirtualThreadPerTaskExecutor();
 
     public PamentoProcessorController(PagamentoRepository pagamentoRepository,
-                                      PagamentoProcessorDefaultClient pagamentoProcessorDefaultClient,
-                                      PagamentoProcessorFallbackClient pagamentoProcessorFallbackClient) {
-        this.pamentoProcessorService = new PamentoProcessorService(
-                pagamentoRepository,
-                pagamentoProcessorDefaultClient,
-                pagamentoProcessorFallbackClient);
+                                      @Value("${pagamento.processor.fallback.url}") String pagamentoProcessorFallbackUrl,
+                                      @Value("${pagamento.processor.default.url}") String pagamentoProcessorDefaultUrl,
+                                      JacksonEncoder jacksonEncoder) {
+        this.pamentoProcessorService = new PamentoProcessorService(pagamentoRepository,
+                pagamentoProcessorFallbackUrl,
+                pagamentoProcessorDefaultUrl,
+                jacksonEncoder);
     }
 
     @PostMapping
