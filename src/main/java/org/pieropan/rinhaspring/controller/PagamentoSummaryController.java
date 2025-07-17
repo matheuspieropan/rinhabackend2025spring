@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/payments-summary")
@@ -18,8 +19,9 @@ public class PagamentoSummaryController {
     }
 
     @GetMapping
-    public PagamentoSummaryResponse summary(@RequestParam("from") String from,
-                                            @RequestParam("to") String to) {
-        return pagamentoSummaryService.summary(from, to);
+    public Mono<PagamentoSummaryResponse> summary(@RequestParam("from") String from,
+                                                  @RequestParam("to") String to) {
+        return Mono.empty();
+        //return pagamentoSummaryService.summary(from, to);
     }
 }

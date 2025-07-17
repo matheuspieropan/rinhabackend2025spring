@@ -3,10 +3,11 @@ package org.pieropan.rinhaspring.service;
 import org.pieropan.rinhaspring.document.PagamentoDocument;
 import org.pieropan.rinhaspring.dto.PagamentoProcessorRequestDto;
 import org.pieropan.rinhaspring.dto.PagamentoRequestDto;
-import org.pieropan.rinhaspring.http.PagamentoProcessorDefaultClient;
-import org.pieropan.rinhaspring.http.PagamentoProcessorFallbackClient;
 import org.pieropan.rinhaspring.repository.PagamentoRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.Queue;
@@ -18,84 +19,80 @@ public class PamentoProcessorService {
     public static Queue<PagamentoRequestDto> paymentsPending = new ConcurrentLinkedQueue<>();
 
     private final PagamentoRepository pagamentoRepository;
-
-    private final PagamentoProcessorDefaultClient pagamentoProcessorDefaultClient;
-
-    private final PagamentoProcessorFallbackClient pagamentoProcessorFallbackClient;
+    private final WebClient defaultWebClient;
+    private final WebClient fallbackWebClient;
 
     public PamentoProcessorService(PagamentoRepository pagamentoRepository,
-                                   PagamentoProcessorDefaultClient pagamentoProcessorDefaultClient,
-                                   PagamentoProcessorFallbackClient pagamentoProcessorFallbackClient) {
+                                   @Qualifier("defaultProcessorWebClient") WebClient defaultWebClient,
+                                   @Qualifier("fallbackProcessorWebClient") WebClient fallbackWebClient) {
         this.pagamentoRepository = pagamentoRepository;
-        this.pagamentoProcessorDefaultClient = pagamentoProcessorDefaultClient;
-        this.pagamentoProcessorFallbackClient = pagamentoProcessorFallbackClient;
+        this.defaultWebClient = defaultWebClient;
+        this.fallbackWebClient = fallbackWebClient;
     }
 
-    public void pagarViaAgendador(PagamentoRequestDto pagamentoRequestDto) {
+    public Mono<Void> pagarViaAgendador(PagamentoRequestDto pagamentoRequestDto) {
         Instant createdAt = Instant.now();
-        boolean sucesso = enviarRequisicao(pagamentoRequestDto, true, createdAt);
 
-        if (sucesso) {
-            salvarDocument(pagamentoRequestDto, true, createdAt);
-            paymentsPending.remove(pagamentoRequestDto);
-        }
+        return enviarRequisicao(pagamentoRequestDto, true, createdAt)
+                .flatMap(sucesso -> {
+                    if (sucesso) {
+                        return salvarDocument(pagamentoRequestDto, true, createdAt)
+                                .doOnSuccess(v -> paymentsPending.remove(pagamentoRequestDto));
+                    }
+                    return Mono.empty();
+                });
     }
 
-    public void pagar(PagamentoRequestDto pagamentoRequestDto) {
-        try {
+    public Mono<Void> pagar(PagamentoRequestDto pagamentoRequestDto) {
+        Instant createdAt = Instant.now();
 
-            Instant createdAt = Instant.now();
-            boolean sucesso = enviarRequisicao(pagamentoRequestDto, true, createdAt);
-
-            if (sucesso) {
-                salvarDocument(pagamentoRequestDto, true, createdAt);
-            } else {
-
-                sucesso = enviarRequisicao(pagamentoRequestDto, false, createdAt);
-                if (sucesso) {
-                    salvarDocument(pagamentoRequestDto, false, createdAt);
-                    return;
-                }
-                paymentsPending.add(pagamentoRequestDto);
-            }
-        } catch (Exception e) {
-            System.out.println("Erro processPayment(PaymentRequest paymentRequest)");
-        }
+        return enviarRequisicao(pagamentoRequestDto, true, createdAt)
+                .flatMap(sucesso -> {
+                    if (sucesso) {
+                        return salvarDocument(pagamentoRequestDto, true, createdAt);
+                    } else {
+                        return enviarRequisicao(pagamentoRequestDto, false, createdAt)
+                                .flatMap(sucessoFallback -> {
+                                    if (sucessoFallback) {
+                                        return salvarDocument(pagamentoRequestDto, false, createdAt);
+                                    } else {
+                                        paymentsPending.add(pagamentoRequestDto);
+                                        return Mono.empty();
+                                    }
+                                });
+                    }
+                })
+                .onErrorResume(ex -> {
+                    System.out.println("Erro processPayment: " + ex.getMessage());
+                    return Mono.empty();
+                });
     }
 
-    public Boolean enviarRequisicao(PagamentoRequestDto pagamentoRequestDto, boolean paymentProcessorDefault, Instant createdAt) {
+    private Mono<Boolean> enviarRequisicao(PagamentoRequestDto pagamentoRequestDto, boolean isDefault, Instant createdAt) {
+        PagamentoProcessorRequestDto body = criarPagamentoProcessorRequest(pagamentoRequestDto, createdAt);
 
-        PagamentoProcessorRequestDto pagamentoProcessorRequestDto = criarPagamentoProcessorRequest(pagamentoRequestDto, createdAt);
+        WebClient client = isDefault ? defaultWebClient : fallbackWebClient;
 
-        try {
-
-            if (paymentProcessorDefault) {
-                pagamentoProcessorDefaultClient.processPayment(pagamentoProcessorRequestDto);
-                return true;
-            }
-
-            pagamentoProcessorFallbackClient.processPayment(pagamentoProcessorRequestDto);
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
+        return client.post()
+                .uri("/payments")
+                .bodyValue(body)
+                .retrieve()
+                .toBodilessEntity()
+                .map(response -> true)
+                .onErrorResume(ex -> Mono.just(false));
     }
 
-    public static PagamentoProcessorRequestDto criarPagamentoProcessorRequest(PagamentoRequestDto pagamentoRequestDto, Instant createdAt) {
-        return new PagamentoProcessorRequestDto(
-                pagamentoRequestDto.correlationId(),
-                pagamentoRequestDto.amount(),
-                createdAt);
-    }
-
-    public void salvarDocument(PagamentoRequestDto pagamentoRequestDto, boolean isDefault, Instant createdAt) {
+    private Mono<Void> salvarDocument(PagamentoRequestDto pagamentoRequestDto, boolean isDefault, Instant createdAt) {
         PagamentoDocument doc = new PagamentoDocument();
-
         doc.setCorrelationId(pagamentoRequestDto.correlationId());
         doc.setAmount(pagamentoRequestDto.amount());
         doc.setPaymentProcessorDefault(isDefault);
         doc.setCreatedAt(createdAt);
 
-        pagamentoRepository.save(doc);
+        return pagamentoRepository.save(doc).then();
+    }
+
+    public static PagamentoProcessorRequestDto criarPagamentoProcessorRequest(PagamentoRequestDto dto, Instant createdAt) {
+        return new PagamentoProcessorRequestDto(dto.correlationId(), dto.amount(), createdAt);
     }
 }
