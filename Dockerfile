@@ -1,11 +1,13 @@
-FROM maven:3.9.6-eclipse-temurin-21 AS builder
-WORKDIR /app
-COPY . .
-RUN mvn clean package -DskipTests
+FROM alpine:3.19
 
-FROM eclipse-temurin:21-jre-alpine
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
-COPY --from=builder /app/target/rinha2025spring-0.0.1-SNAPSHOT.jar app.jar
+
+COPY target/rinha2025spring /app/rinha2025spring
+
+RUN chmod +x /app/rinha2025spring
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+ENTRYPOINT ["./rinha2025spring"]
